@@ -283,6 +283,14 @@ jobs:
             sed -i "0,/dependencies {/s//dependencies {\n    implementation fileTree(dir: 'libs', include: ['*.aar'])/" "${GRADLE}"
           fi
 
+          # volt.aar is built for Android API 24 (gomobile --api 24), so the app's
+          # minSdkVersion must be >= 24 or the manifest merge fails. Capacitor's
+          # default is 22; bump it in variables.gradle.
+          VARS="android/variables.gradle"
+          sed -i -E 's/(minSdkVersion[[:space:]]*=[[:space:]]*)[0-9]+/\124/' "${VARS}"
+          echo "==> minSdkVersion:"
+          grep -n "minSdkVersion" "${VARS}" || true
+
           echo "==> MainActivity plugin registration:"
           grep -n "VoltBridgePlugin" "${APP_PKG_DIR}"/MainActivity.* || true
           echo "==> build.gradle AAR dependency:"
