@@ -12,18 +12,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.x"
-          cache: true
-
-      - name: Build Go backend
-        run: go build ./...
-
-      - name: Test Go backend
-        run: go test ./...
-
+      # The frontend is built first because main.go embeds it via
+      # `//go:embed all:frontend/dist`; the Go build below fails if dist/ is
+      # absent. (frontend/dist is gitignored, so it must be produced in CI.)
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -46,3 +37,15 @@ jobs:
       - name: Test frontend
         working-directory: frontend
         run: npm test
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - name: Build Go backend
+        run: go build ./...
+
+      - name: Test Go backend
+        run: go test ./...
