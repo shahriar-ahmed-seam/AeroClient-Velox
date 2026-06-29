@@ -104,8 +104,15 @@ gomobile init
 # --- Build -----------------------------------------------------------------
 mkdir -p "${OUT_DIR}"
 
-echo "==> gomobile bind"
 cd "${MODULE_ROOT}"
+
+# gomobile bind requires golang.org/x/mobile to be a direct dependency in the
+# module graph. `go mod tidy` drops it because no package imports it directly,
+# so re-add it here before binding (matches gomobile's documented requirement).
+echo "==> Ensuring golang.org/x/mobile is in the module graph"
+go get golang.org/x/mobile/bind
+
+echo "==> gomobile bind"
 gomobile bind \
   -target=android \
   -androidapi "${ANDROID_API}" \
