@@ -220,21 +220,23 @@ jobs:
         # copies it into the native Android project on sync.
         run: npm run build
 
+      - name: Generate native Android project
+        working-directory: frontend
+        # The android/ project is not committed; generate it on demand, then sync
+        # the web bundle + Capacitor plugins into it. This must run BEFORE the AAR
+        # build, because build-aar.sh writes the AAR into android/app/libs and
+        # `cap add android` refuses to run if the android/ directory already exists.
+        run: |
+          set -euo pipefail
+          npx cap add android
+          npm run cap:sync
+
       - name: Build shared Go core (volt.aar)
         shell: bash
         # gomobile bind compiles internal/httpcore + store via the ./mobile facade
         # into frontend/android/app/libs/volt.aar (the AAR the VoltBridge plugin
         # links). --api must be >= the project's minSdkVersion.
         run: bash scripts/build-aar.sh --api 24
-
-      - name: Generate native Android project
-        working-directory: frontend
-        # The android/ project is not committed; generate it on demand, then sync
-        # the web bundle + Capacitor plugins into it.
-        run: |
-          set -euo pipefail
-          npx cap add android
-          npm run cap:sync
 
       - name: Stamp Semantic_Version into the native project
         working-directory: frontend
