@@ -188,9 +188,13 @@ jobs:
         # gomobile cross-compiles the Go runtime for Android and therefore needs
         # the NDK, which setup-android does not install by default.
         run: |
-          set -euo pipefail
+          set -e
           NDK_VERSION=26.3.11579264
-          yes | sdkmanager --install "ndk;${NDK_VERSION}" >/dev/null
+          # `yes |` exits non-zero via SIGPIPE once sdkmanager closes the pipe,
+          # which trips bash's pipefail; tolerate that and verify the install by
+          # checking the resulting directory instead.
+          yes 2>/dev/null | sdkmanager --install "ndk;${NDK_VERSION}" >/dev/null || true
+          test -d "${ANDROID_HOME}/ndk/${NDK_VERSION}"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
 
