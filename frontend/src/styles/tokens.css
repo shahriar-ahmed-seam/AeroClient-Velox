@@ -24,6 +24,7 @@
   --color-text-dim: #8b90a0;
   --color-accent: #ffb020;
   --color-accent-2: #f5d76e;
+  --color-on-accent: #1a1205; /* text/icon color on an accent-filled surface */
   --color-green: #3fb950;
   --color-red: #f85149;
   --color-blue: #58a6ff;
@@ -42,6 +43,7 @@
   --text-dim: var(--color-text-dim);
   --accent: var(--color-accent);
   --accent-2: var(--color-accent-2);
+  --on-accent: var(--color-on-accent);
   --green: var(--color-green);
   --red: var(--color-red);
   --blue: var(--color-blue);
@@ -113,4 +115,32 @@
 *::before,
 *::after {
   border-radius: 0 !important;
+}
+
+/*
+ * Light theme.
+ *
+ * settingsStore applies the resolved theme by setting `data-theme="light"` or
+ * `data-theme="dark"` on <html> (Theme = light | dark | system; "system"
+ * resolves via prefers-color-scheme). The dark palette above lives in :root and
+ * is the default; this block overrides only the RAW --color-* tokens for light
+ * mode. Because every semantic alias (--bg, --text, --accent, …) is defined as
+ * `var(--color-*)`, redefining the raw tokens here cascades to the whole UI
+ * with no other changes needed.
+ */
+:root[data-theme="light"] {
+  --color-bg: #f6f7f9;
+  --color-bg-elev: #ffffff;
+  --color-bg-elev-2: #eceef2;
+  --color-border: #d7dae1;
+  --color-border-strong: #b7bcc8;
+  --color-text: #1b1d23;
+  --color-text-dim: #5b616e;
+  --color-accent: #ffb020;
+  --color-accent-2: #e0982a;
+  --color-on-accent: #1a1205;
+  --color-green: #1a7f37;
+  --color-red: #cf222e;
+  --color-blue: #0969da;
+  --color-purple: #8250df;
 }

@@ -77,7 +77,7 @@
   }
   .send {
     background: var(--accent);
-    color: var(--bg);
+    color: var(--on-accent);
     border: none;
     font-weight: var(--font-weight-bold);
     font-family: var(--font-sans);
