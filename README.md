@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ Volt
+# ⚡ AeroClient-Velox
 
 **A fast, cross-platform API client for desktop and Android.**
 

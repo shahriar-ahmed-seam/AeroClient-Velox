@@ -23,7 +23,7 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:     "Volt — API Client",
+		Title:     "AeroClient-Velox — API Client",
 		Width:     1280,
 		Height:    820,
 		MinWidth:  900,

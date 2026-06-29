@@ -4,6 +4,7 @@
 // forwarding to the same shared Go core, so the UI code is identical across
 // platforms. getBackend() selects the right one at startup.
 
+import { Capacitor } from '@capacitor/core'
 import type {
   Collection,
   Environment,
@@ -62,9 +63,18 @@ export interface Backend {
   appVersion(): Promise<string>
 }
 
-/** True when running inside a Capacitor (Android) WebView shell. */
+/**
+ * True only when running on a real native Capacitor platform (Android/iOS).
+ *
+ * NOTE: we must use Capacitor.isNativePlatform() rather than checking
+ * `window.Capacitor`, because merely bundling @capacitor/core defines the
+ * `window.Capacitor` global on EVERY platform — including the Wails desktop
+ * WebView. The old check therefore mis-selected capacitorBackend on desktop,
+ * causing "VoltBridge plugin is not implemented on web" errors. isNativePlatform()
+ * returns false on web/desktop and true only inside the Android shell.
+ */
 function isCapacitor(): boolean {
-  return typeof window !== 'undefined' && (window as { Capacitor?: unknown }).Capacitor != null
+  return Capacitor.isNativePlatform()
 }
 
 let selected: Backend | null = null

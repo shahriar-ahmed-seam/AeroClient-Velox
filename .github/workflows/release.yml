@@ -100,14 +100,14 @@ jobs:
           mkdir -p dist
           case "${{ matrix.name }}" in
             windows)
-              cp "build/bin/volt.exe" "dist/volt-${VERSION}-windows-amd64.exe"
+              cp "build/bin/AeroClient-Velox.exe" "dist/AeroClient-Velox-${VERSION}-windows-amd64.exe"
               ;;
             macos)
               # Zip the .app bundle, preserving symlinks/permissions.
-              ditto -c -k --keepParent "build/bin/volt.app" "dist/volt-${VERSION}-macos.zip"
+              ditto -c -k --keepParent "build/bin/AeroClient-Velox.app" "dist/AeroClient-Velox-${VERSION}-macos.zip"
               ;;
             linux)
-              cp "build/bin/volt" "dist/volt-${VERSION}-linux-amd64"
+              cp "build/bin/AeroClient-Velox" "dist/AeroClient-Velox-${VERSION}-linux-amd64"
               ;;
           esac
           ls -la dist
@@ -115,7 +115,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: volt-desktop-${{ matrix.name }}
+          name: aeroclient-desktop-${{ matrix.name }}
           path: dist/*
           if-no-files-found: error
           retention-days: 1
@@ -133,7 +133,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           # Collect every per-OS desktop artifact into a single directory.
-          pattern: volt-desktop-*
+          pattern: aeroclient-desktop-*
           merge-multiple: true
           path: release-assets
 
@@ -313,13 +313,13 @@ jobs:
             echo "error: no release APK produced by assembleRelease" >&2
             exit 1
           fi
-          cp "${APK}" "dist/volt-${VERSION}-android.apk"
+          cp "${APK}" "dist/AeroClient-Velox-${VERSION}-android.apk"
           ls -la dist
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: volt-android
+          name: aeroclient-android
           path: dist/*
           if-no-files-found: error
           retention-days: 1
@@ -338,7 +338,7 @@ jobs:
       - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
-          name: volt-android
+          name: aeroclient-android
           path: release-assets
 
       - name: List release assets

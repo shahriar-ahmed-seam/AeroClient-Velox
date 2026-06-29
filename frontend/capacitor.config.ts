@@ -21,7 +21,7 @@ const config: CapacitorConfig = {
   // Reverse-domain application id used as the Android package id.
   appId: 'dev.volt.apiclient',
   // Display name shown under the launcher icon. Matches the desktop product name.
-  appName: 'Volt',
+  appName: 'AeroClient-Velox',
   // The Vite build output directory that Capacitor copies into the WebView on
   // `cap sync`. `npm run build` writes the Svelte/Vite bundle here, so the
   // Android shell hosts the same design system and narrow-viewport responsive

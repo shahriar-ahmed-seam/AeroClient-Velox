@@ -1,6 +1,6 @@
-# Volt frontend
+# AeroClient-Velox frontend
 
-The Svelte 5 single-page UI for Volt. It is platform-agnostic: the same build is
+The Svelte 5 single-page UI for AeroClient-Velox. It is platform-agnostic: the same build is
 embedded by the Wails desktop app and the Capacitor Android shell, talking to the
 shared Go core only through the `Backend` interface in `src/lib/backend/`.
 

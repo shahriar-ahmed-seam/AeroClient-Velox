@@ -130,7 +130,7 @@
 <div class="app" data-breakpoint={breakpoint}>
   <!-- Icon rail: always visible, switches sidebar section / view (Req 12.1). -->
   <nav class="rail" aria-label="Primary">
-    <div class="rail-logo" title="Volt">⚡</div>
+    <div class="rail-logo" title="AeroClient-Velox">⚡</div>
 
     <button
       class="rail-btn"
@@ -184,7 +184,7 @@
         >☰</button>
       {/if}
 
-      <div class="brand">VOLT <span class="brand-dim">api client</span></div>
+      <div class="brand">AeroClient<span class="brand-dim">-Velox</span></div>
 
       <button
         class="cmd"

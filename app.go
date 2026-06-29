@@ -72,7 +72,7 @@ func defaultDBPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	voltDir := filepath.Join(configDir, "Volt")
+	voltDir := filepath.Join(configDir, "AeroClient-Velox")
 	if err := os.MkdirAll(voltDir, 0o755); err != nil {
 		return "", err
 	}
