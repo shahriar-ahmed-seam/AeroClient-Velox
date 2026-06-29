@@ -58,7 +58,7 @@ public class VoltBridgePlugin extends Plugin {
      * Lazily opens (or returns) the Bridge against the app's private database
      * file. Mobile.newBridge throws on open failure.
      */
-    private Bridge getBridge() throws Exception {
+    private Bridge nativeBridge() throws Exception {
         if (bridge == null) {
             String dbPath = new java.io.File(getContext().getFilesDir(), "volt.db").getAbsolutePath();
             bridge = Mobile.newBridge(dbPath);
@@ -96,7 +96,7 @@ public class VoltBridgePlugin extends Plugin {
      */
     private void forward(PluginCall call, BridgeCall block) {
         try {
-            resolveResult(call, block.run(getBridge()));
+            resolveResult(call, block.run(nativeBridge()));
         } catch (Throwable t) {
             // Surface as the same JSON error envelope the Bridge uses, so the JS
             // layer's error handling path is identical.
