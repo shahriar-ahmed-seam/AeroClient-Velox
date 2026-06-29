@@ -1,0 +1,27 @@
+# Build output
+build/bin
+/volt
+/volt.exe
+*.exe
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Node / frontend
+node_modules
+frontend/dist
+frontend/.vite
+
+# Capacitor / Android (generated on demand)
+frontend/android
+frontend/ios
+*.aar
+*.apk
+*.aab
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.log

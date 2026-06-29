@@ -1,0 +1,334 @@
+# Release workflow for Volt desktop builds.
+#
+# Triggers ONLY on semantic-version tags (MAJOR.MINOR.PATCH, optionally with a
+# pre-release/build suffix). The desktop apps for Windows, macOS, and Linux are
+# built in parallel via a matrix; each build injects the pushed tag into the Go
+# binary through `-ldflags "-X main.version=<tag>"` so the running app reports
+# its real version (Req 13.1). A single GitHub Release is published only after
+# every matrix build succeeds — the `publish` job declares `needs: build-desktop`,
+# so any failed build blocks publishing entirely (Req 13.5).
+#
+# The Android artifact (task 22.4) is built and published by a SEPARATE pair of
+# jobs (`build-android` + `publish-android`) whose `needs:` graph is disjoint
+# from the desktop jobs. Because the two pipelines never reference each other,
+# a failed Android build blocks only `publish-android` (the desktop release
+# still happens) and a failed desktop build blocks only `publish` (the Android
+# artifact still publishes) — satisfying Req 15.7 / 15.8. Both publish jobs
+# attach their assets to the SAME tag's GitHub Release; softprops/action-gh-release
+# upserts files onto an existing release, so the two run independently.
+name: Release
+
+on:
+  push:
+    tags:
+      # Semver tags only: v1.2.3, v1.2.3-rc.1, v1.2.3+build.5, etc.
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+# Required so the publish job can create a GitHub Release using GITHUB_TOKEN.
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    name: Build desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    # Surface every platform's failure rather than cancelling siblings, but any
+    # single failure still leaves the publish job's `needs` unsatisfied.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-latest
+            name: macos
+          - os: ubuntu-latest
+            name: linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Linux build prerequisites
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
+        # wails build also runs `npm install` per wails.json, but installing
+        # explicitly with the lockfile keeps the frontend build reproducible.
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build desktop app
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # wails build runs the frontend build (npm run build) per wails.json,
+          # then compiles the Go binary with the version injected via ldflags.
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            # ubuntu-latest ships libwebkit2gtk-4.1; select it via build tag.
+            wails build -tags webkit2_41 -ldflags "-X main.version=${VERSION}"
+          else
+            wails build -ldflags "-X main.version=${VERSION}"
+          fi
+
+      - name: Package artifact
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          case "${{ matrix.name }}" in
+            windows)
+              cp "build/bin/volt.exe" "dist/volt-${VERSION}-windows-amd64.exe"
+              ;;
+            macos)
+              # Zip the .app bundle, preserving symlinks/permissions.
+              ditto -c -k --keepParent "build/bin/volt.app" "dist/volt-${VERSION}-macos.zip"
+              ;;
+            linux)
+              cp "build/bin/volt" "dist/volt-${VERSION}-linux-amd64"
+              ;;
+          esac
+          ls -la dist
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: volt-desktop-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    # Gates the release: if ANY matrix build fails, this job does not run, so no
+    # Release is created and no artifact is attached (Req 13.5).
+    needs: build-desktop
+    permissions:
+      contents: write
+    steps:
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # Collect every per-OS desktop artifact into a single directory.
+          pattern: volt-desktop-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: List release assets
+        run: ls -la release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-assets/*
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    # NOTE: this job intentionally does NOT depend on build-desktop, and the
+    # desktop jobs do not depend on it. The two pipelines are fully independent
+    # so a failure on one side never blocks the other (Req 15.7, 15.8).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install gomobile toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Initialise gomobile
+        shell: bash
+        run: gomobile init
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build web bundle
+        working-directory: frontend
+        # Produces dist/, the same web bundle the desktop build wraps; Capacitor
+        # copies it into the native Android project on sync.
+        run: npm run build
+
+      - name: Build shared Go core (volt.aar)
+        shell: bash
+        # gomobile bind compiles internal/httpcore + store via the ./mobile facade
+        # into frontend/android/app/libs/volt.aar (the AAR the VoltBridge plugin
+        # links). --api must be >= the project's minSdkVersion.
+        run: scripts/build-aar.sh --api 24
+
+      - name: Generate native Android project
+        working-directory: frontend
+        # The android/ project is not committed; generate it on demand, then sync
+        # the web bundle + Capacitor plugins into it.
+        run: |
+          set -euo pipefail
+          npx cap add android
+          npm run cap:sync
+
+      - name: Stamp Semantic_Version into the native project
+        working-directory: frontend
+        # Writes versionName/versionCode in android/app/build.gradle from the
+        # pushed git tag (Req 15.9).
+        run: npm run android:set-version "${GITHUB_REF_NAME}"
+
+      - name: Wire the VoltBridge plugin and AAR into the Gradle project
+        working-directory: frontend
+        shell: bash
+        # Copy the Kotlin plugin template into the generated app package, register
+        # it in MainActivity, and make Gradle consume the AAR placed in app/libs.
+        # These edits are scripted because the android/ project is generated fresh.
+        run: |
+          set -euo pipefail
+
+          APP_PKG_DIR="android/app/src/main/java/dev/volt/apiclient"
+          mkdir -p "${APP_PKG_DIR}"
+          cp native-android/VoltBridgePlugin.kt "${APP_PKG_DIR}/VoltBridgePlugin.kt"
+
+          # Register the plugin in MainActivity, inserting the call (with the same
+          # leading indentation) immediately before the super.onCreate(...) line.
+          # Capacitor 6 generates a Java MainActivity by default, but handle a
+          # Kotlin one too.
+          MAIN_ACTIVITY_JAVA="${APP_PKG_DIR}/MainActivity.java"
+          MAIN_ACTIVITY_KT="${APP_PKG_DIR}/MainActivity.kt"
+          if [ -f "${MAIN_ACTIVITY_KT}" ]; then
+            if ! grep -q "VoltBridgePlugin" "${MAIN_ACTIVITY_KT}"; then
+              sed -i 's#^\([[:space:]]*\)super\.onCreate(savedInstanceState)#\1registerPlugin(dev.volt.apiclient.VoltBridgePlugin::class.java)\n\1super.onCreate(savedInstanceState)#' "${MAIN_ACTIVITY_KT}"
+            fi
+          elif [ -f "${MAIN_ACTIVITY_JAVA}" ]; then
+            if ! grep -q "VoltBridgePlugin" "${MAIN_ACTIVITY_JAVA}"; then
+              sed -i 's#^\([[:space:]]*\)super\.onCreate(savedInstanceState);#\1registerPlugin(dev.volt.apiclient.VoltBridgePlugin.class);\n\1super.onCreate(savedInstanceState);#' "${MAIN_ACTIVITY_JAVA}"
+            fi
+          else
+            echo "error: no MainActivity (.java/.kt) found to register the plugin" >&2
+            exit 1
+          fi
+
+          # Make Gradle pull in every AAR under app/libs (volt.aar lives there).
+          # Insert the fileTree dependency right after the FIRST 'dependencies {'.
+          GRADLE="android/app/build.gradle"
+          if ! grep -q "fileTree(dir: 'libs'" "${GRADLE}"; then
+            sed -i "0,/dependencies {/s//dependencies {\n    implementation fileTree(dir: 'libs', include: ['*.aar'])/" "${GRADLE}"
+          fi
+
+          echo "==> MainActivity plugin registration:"
+          grep -n "VoltBridgePlugin" "${APP_PKG_DIR}"/MainActivity.* || true
+          echo "==> build.gradle AAR dependency:"
+          grep -n "fileTree" "${GRADLE}" || true
+
+      - name: Assemble Android release APK
+        working-directory: frontend/android
+        run: ./gradlew assembleRelease
+
+      - name: Package Android artifact
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # assembleRelease writes the APK under app/build/outputs/apk/release/.
+          APK="$(find frontend/android/app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          if [ -z "${APK}" ]; then
+            echo "error: no release APK produced by assembleRelease" >&2
+            exit 1
+          fi
+          cp "${APK}" "dist/volt-${VERSION}-android.apk"
+          ls -la dist
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: volt-android
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-android:
+    name: Publish Android Release asset
+    runs-on: ubuntu-latest
+    # Independent gate: depends ONLY on build-android. If the Android build fails
+    # this job does not run, so the Android artifact is not published (Req 15.8),
+    # but the desktop `publish` job is unaffected. Likewise a desktop failure
+    # never reaches this job (Req 15.7).
+    needs: build-android
+    permissions:
+      contents: write
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: volt-android
+          path: release-assets
+
+      - name: List release assets
+        run: ls -la release-assets
+
+      - name: Attach Android artifact to GitHub Release
+        # action-gh-release upserts files onto the tag's release, so this can run
+        # independently of (and concurrently with) the desktop publish job — both
+        # attach assets to the same Semantic_Version release.
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-assets/*

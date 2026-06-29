@@ -1,0 +1,116 @@
+/*
+ * Volt Design System — Token Layer
+ *
+ * Single source of truth for color, typography, spacing, and radius.
+ * Requirements:
+ *   11.1 — every visual surface renders with border-radius: 0px (no exceptions)
+ *   11.2 — one spacing scale: integer multiples of a 4px base unit
+ *   11.3 — container surfaces use a minimum interior padding of 16px (from the scale)
+ *   11.4 — named color and typography tokens; no hardcoded color/typography values
+ *
+ * Do not introduce raw color/typography/spacing literals outside this file.
+ */
+
+:root {
+  /* ---------------------------------------------------------------------- */
+  /* Color — raw palette                                                    */
+  /* ---------------------------------------------------------------------- */
+  --color-bg: #111217;
+  --color-bg-elev: #181a21;
+  --color-bg-elev-2: #1f222b;
+  --color-border: #2a2e3a;
+  --color-border-strong: #3a3f4d;
+  --color-text: #e6e8ee;
+  --color-text-dim: #8b90a0;
+  --color-accent: #ffb020;
+  --color-accent-2: #f5d76e;
+  --color-green: #3fb950;
+  --color-red: #f85149;
+  --color-blue: #58a6ff;
+  --color-purple: #bc8cff;
+
+  /* ---------------------------------------------------------------------- */
+  /* Color — semantic aliases (legacy names kept so existing references     */
+  /* such as var(--green)/var(--accent) in types.ts continue to resolve)    */
+  /* ---------------------------------------------------------------------- */
+  --bg: var(--color-bg);
+  --bg-elev: var(--color-bg-elev);
+  --bg-elev-2: var(--color-bg-elev-2);
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
+  --text: var(--color-text);
+  --text-dim: var(--color-text-dim);
+  --accent: var(--color-accent);
+  --accent-2: var(--color-accent-2);
+  --green: var(--color-green);
+  --red: var(--color-red);
+  --blue: var(--color-blue);
+  --purple: var(--color-purple);
+
+  /* Status semantics (status-class colors per Req 4.2) */
+  --status-success: var(--color-green); /* 2xx */
+  --status-redirect: var(--color-blue); /* 3xx */
+  --status-client-error: var(--color-accent); /* 4xx */
+  --status-server-error: var(--color-red); /* 5xx */
+
+  /* ---------------------------------------------------------------------- */
+  /* Typography — families                                                  */
+  /* ---------------------------------------------------------------------- */
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Legacy aliases */
+  --mono: var(--font-mono);
+  --sans: var(--font-sans);
+
+  /* Typography — sizes (type scale) */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px; /* base body size */
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 28px;
+
+  /* Typography — weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Typography — line heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* ---------------------------------------------------------------------- */
+  /* Spacing — single scale, integer multiples of a 4px base (Req 11.2)     */
+  /* ---------------------------------------------------------------------- */
+  --space-base: 4px;
+  --space-1: 4px;   /* 1 × base */
+  --space-2: 8px;   /* 2 × base */
+  --space-3: 12px;  /* 3 × base */
+  --space-4: 16px;  /* 4 × base */
+  --space-6: 24px;  /* 6 × base */
+  --space-8: 32px;  /* 8 × base */
+  --space-12: 48px; /* 12 × base */
+
+  /* Minimum interior padding for container-level surfaces (Req 11.3).
+     Drawn from the scale; must remain >= 16px. */
+  --container-padding: var(--space-4);
+
+  /* ---------------------------------------------------------------------- */
+  /* Radius — sharp corners only (Req 11.1)                                 */
+  /* ---------------------------------------------------------------------- */
+  --radius: 0;
+  --radius-none: 0;
+}
+
+/*
+ * Global square-corner enforcement (Req 11.1).
+ * Every element, including pseudo-elements, renders with no rounded corners.
+ * No non-zero exceptions are permitted.
+ */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
