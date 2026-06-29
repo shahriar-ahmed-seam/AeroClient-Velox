@@ -247,34 +247,32 @@ jobs:
       - name: Wire the VoltBridge plugin and AAR into the Gradle project
         working-directory: frontend
         shell: bash
-        # Copy the Kotlin plugin template into the generated app package, register
-        # it in MainActivity, and make Gradle consume the AAR placed in app/libs.
-        # These edits are scripted because the android/ project is generated fresh.
+        # Copy the Java plugin template into the generated app package, overwrite
+        # the generated MainActivity with one that registers the plugin, and make
+        # Gradle consume the AAR placed in app/libs. These edits are scripted
+        # because the android/ project is generated fresh.
+        #
+        # The plugin and MainActivity are Java (not Kotlin): Capacitor 6 generates
+        # a Java app and only the Java compile task runs, so a .kt plugin was
+        # silently dropped from the APK and the sed-based registration never
+        # matched the generated empty Java MainActivity. Shipping Java files and
+        # overwriting MainActivity outright removes that toolchain uncertainty.
         run: |
           set -euo pipefail
 
           APP_PKG_DIR="android/app/src/main/java/dev/volt/apiclient"
           mkdir -p "${APP_PKG_DIR}"
-          cp native-android/VoltBridgePlugin.kt "${APP_PKG_DIR}/VoltBridgePlugin.kt"
 
-          # Register the plugin in MainActivity, inserting the call (with the same
-          # leading indentation) immediately before the super.onCreate(...) line.
-          # Capacitor 6 generates a Java MainActivity by default, but handle a
-          # Kotlin one too.
-          MAIN_ACTIVITY_JAVA="${APP_PKG_DIR}/MainActivity.java"
-          MAIN_ACTIVITY_KT="${APP_PKG_DIR}/MainActivity.kt"
-          if [ -f "${MAIN_ACTIVITY_KT}" ]; then
-            if ! grep -q "VoltBridgePlugin" "${MAIN_ACTIVITY_KT}"; then
-              sed -i 's#^\([[:space:]]*\)super\.onCreate(savedInstanceState)#\1registerPlugin(dev.volt.apiclient.VoltBridgePlugin::class.java)\n\1super.onCreate(savedInstanceState)#' "${MAIN_ACTIVITY_KT}"
-            fi
-          elif [ -f "${MAIN_ACTIVITY_JAVA}" ]; then
-            if ! grep -q "VoltBridgePlugin" "${MAIN_ACTIVITY_JAVA}"; then
-              sed -i 's#^\([[:space:]]*\)super\.onCreate(savedInstanceState);#\1registerPlugin(dev.volt.apiclient.VoltBridgePlugin.class);\n\1super.onCreate(savedInstanceState);#' "${MAIN_ACTIVITY_JAVA}"
-            fi
-          else
-            echo "error: no MainActivity (.java/.kt) found to register the plugin" >&2
-            exit 1
-          fi
+          # Ship the Java plugin; never the Kotlin template, and remove any
+          # generated/stale Kotlin sources that would otherwise go uncompiled.
+          cp native-android/VoltBridgePlugin.java "${APP_PKG_DIR}/VoltBridgePlugin.java"
+          rm -f "${APP_PKG_DIR}/VoltBridgePlugin.kt"
+
+          # Overwrite the generated MainActivity with one that registers the
+          # plugin in onCreate (before super.onCreate, where Capacitor builds the
+          # bridge). Remove any generated Kotlin MainActivity to avoid duplicates.
+          cp native-android/MainActivity.java "${APP_PKG_DIR}/MainActivity.java"
+          rm -f "${APP_PKG_DIR}/MainActivity.kt"
 
           # Make Gradle pull in every AAR under app/libs (volt.aar lives there).
           # Insert the fileTree dependency right after the FIRST 'dependencies {'.
@@ -292,7 +290,9 @@ jobs:
           grep -n "minSdkVersion" "${VARS}" || true
 
           echo "==> MainActivity plugin registration:"
-          grep -n "VoltBridgePlugin" "${APP_PKG_DIR}"/MainActivity.* || true
+          grep -n "VoltBridgePlugin" "${APP_PKG_DIR}/MainActivity.java" || true
+          echo "==> plugin source files present:"
+          ls -la "${APP_PKG_DIR}"
           echo "==> build.gradle AAR dependency:"
           grep -n "fileTree" "${GRADLE}" || true
 

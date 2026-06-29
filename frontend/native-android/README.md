@@ -15,7 +15,7 @@ Svelte UI  ──▶  Backend (capacitorBackend)  ──▶  VoltBridge plugin (
                 src/lib/backend/capacitor.ts      src/lib/native/voltBridgePlugin.ts
                                                           │  Capacitor JS↔native bridge
                                                           ▼
-                                            VoltBridgePlugin.kt  (this dir)
+                                            VoltBridgePlugin.java  (this dir)
                                                           │  JNI (gomobile)
                                                           ▼
                                             volt.aar  →  mobile.Bridge  →  httpcore + store
@@ -31,9 +31,14 @@ Svelte UI  ──▶  Backend (capacitorBackend)  ──▶  VoltBridge plugin (
 
 ## Files
 
-- `VoltBridgePlugin.kt` — the `@CapacitorPlugin(name = "VoltBridge")` class. Each
+- `VoltBridgePlugin.java` — the `@CapacitorPlugin(name = "VoltBridge")` class. Each
   method forwards a string-in/string-out call to the matching `mobile.Bridge`
-  method and resolves `{ result: <json string> }`.
+  method and resolves `{ result: <json string> }`. It is Java (not Kotlin)
+  because Capacitor 6 generates a Java app and only the Java compile task runs;
+  a `.kt` plugin would be silently dropped from the APK.
+- `MainActivity.java` — overwrites the generated `MainActivity`; registers the
+  plugin via `registerPlugin(VoltBridgePlugin.class)` in `onCreate` before
+  `super.onCreate(...)`, which is where Capacitor builds the bridge.
 - `androidTest/VoltBridgeInstrumentedTest.kt` — on-device instrumented test
   (task 22.3) that drives `mobile.Bridge` directly to prove the Android request
   path matches the desktop path. See "Instrumented tests (task 22.3)" below.
@@ -83,20 +88,28 @@ provisioned environment (JDK, Android SDK + NDK, Go, gomobile).
    (The AAR is already placed at `android/app/libs/volt.aar` by step 1.)
 
 4. **Copy the plugin into the project** and register it. Copy
-   `VoltBridgePlugin.kt` into the app's package source dir, e.g.
-   `android/app/src/main/java/dev/volt/apiclient/VoltBridgePlugin.kt`, then
-   register it in `MainActivity`:
+   `VoltBridgePlugin.java` into the app's package source dir, e.g.
+   `android/app/src/main/java/dev/volt/apiclient/VoltBridgePlugin.java`, then
+   overwrite the generated `MainActivity.java` with `MainActivity.java` from this
+   dir (which registers the plugin):
 
-   ```kotlin
-   import dev.volt.apiclient.VoltBridgePlugin
+   ```java
+   package dev.volt.apiclient;
 
-   class MainActivity : BridgeActivity() {
-       override fun onCreate(savedInstanceState: Bundle?) {
-           registerPlugin(VoltBridgePlugin::class.java)
-           super.onCreate(savedInstanceState)
+   import android.os.Bundle;
+   import com.getcapacitor.BridgeActivity;
+
+   public class MainActivity extends BridgeActivity {
+       @Override
+       public void onCreate(Bundle savedInstanceState) {
+           registerPlugin(VoltBridgePlugin.class);
+           super.onCreate(savedInstanceState);
        }
    }
    ```
+
+   Remove any generated `MainActivity.kt` / `VoltBridgePlugin.kt` so no Kotlin
+   sources are left uncompiled.
 
 5. **Stamp the version** and build:
 
@@ -174,17 +187,18 @@ cd android
 
 ## Notes / gotchas
 
-- **Reserved method name.** Go's `Bridge.Import` binds to a Java/Kotlin method
+- **Reserved method name.** Go's `Bridge.Import` binds to a Java method
   whose name collides with the `import` keyword; gomobile escapes it (commonly
-  `import_`). `VoltBridgePlugin.kt` calls `bridge.import_(dataJSON)`. If your
+  `import_`). `VoltBridgePlugin.java` calls `bridge.import_(dataJSON)`. If your
   gomobile version generates a different escaped name, adjust that one call to
   match the symbol in the generated `Bridge` class.
 - **API level.** `scripts/build-aar.sh --api <n>` must be `>=` the project's
   `minSdkVersion`.
 - **Plugin name must match.** The JS side registers `registerPlugin('VoltBridge')`
-  and the Kotlin side is `@CapacitorPlugin(name = "VoltBridge")`. Keep both in
+  and the Java side is `@CapacitorPlugin(name = "VoltBridge")`. Keep both in
   sync or the bridge calls will not resolve.
-- **`appVersion()`** has no Bridge counterpart: it returns `BuildConfig.VERSION_NAME`
+- **`appVersion()`** has no Bridge counterpart: it returns the APK `versionName`
+  read via `PackageManager` (not `BuildConfig`, which AGP 8 disables by default)
   so the in-app About/Settings view shows the version baked into the APK.
 - **Instrumented test network.** `VoltBridgeInstrumentedTest` hits a live public
   echo host (`https://echo.hoppscotch.io`); if that host is unavailable in CI,
