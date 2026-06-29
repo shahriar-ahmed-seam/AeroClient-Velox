@@ -300,20 +300,56 @@ jobs:
         working-directory: frontend/android
         run: ./gradlew assembleRelease
 
-      - name: Package Android artifact
+      - name: Sign and package the Android APK
         shell: bash
         env:
           VERSION: ${{ github.ref_name }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # assembleRelease produces app-release-unsigned.apk, which Android refuses
+        # to install ("package appears invalid"/certificate error). Sign it with
+        # the release keystore (stored as repo secrets) using zipalign + apksigner
+        # so the published APK is installable.
         run: |
           set -euo pipefail
           mkdir -p dist
-          # assembleRelease writes the APK under app/build/outputs/apk/release/.
-          APK="$(find frontend/android/app/build/outputs/apk/release -name '*.apk' | head -n 1)"
-          if [ -z "${APK}" ]; then
+
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "error: signing secrets are not configured (ANDROID_KEYSTORE_BASE64 missing)." >&2
+            echo "       Set the ANDROID_KEYSTORE_* repository secrets to produce a signed APK." >&2
+            exit 1
+          fi
+
+          UNSIGNED="$(find frontend/android/app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          if [ -z "${UNSIGNED}" ]; then
             echo "error: no release APK produced by assembleRelease" >&2
             exit 1
           fi
-          cp "${APK}" "dist/AeroClient-Velox-${VERSION}-android.apk"
+          echo "Unsigned APK: ${UNSIGNED}"
+
+          # Newest installed build-tools provides zipalign + apksigner.
+          BT="$(ls -d "${ANDROID_HOME}"/build-tools/* | sort -V | tail -n 1)"
+          echo "build-tools: ${BT}"
+
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/release.keystore"
+
+          ALIGNED="${RUNNER_TEMP}/aligned.apk"
+          SIGNED="dist/AeroClient-Velox-${VERSION}-android.apk"
+
+          "${BT}/zipalign" -f -p 4 "${UNSIGNED}" "${ALIGNED}"
+          "${BT}/apksigner" sign \
+            --ks "${RUNNER_TEMP}/release.keystore" \
+            --ks-pass "pass:${ANDROID_KEYSTORE_PASSWORD}" \
+            --ks-key-alias "${ANDROID_KEY_ALIAS}" \
+            --key-pass "pass:${ANDROID_KEY_PASSWORD}" \
+            --out "${SIGNED}" \
+            "${ALIGNED}"
+
+          # Fail loudly if the signature is not valid.
+          "${BT}/apksigner" verify --verbose "${SIGNED}"
+          rm -f "${RUNNER_TEMP}/release.keystore"
           ls -la dist
 
       - name: Upload Android artifact

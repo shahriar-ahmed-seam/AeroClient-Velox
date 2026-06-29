@@ -21,6 +21,8 @@ frontend/ios
 *.aar
 *.apk
 *.aab
+*.keystore
+*.jks
 
 # Editor / OS
 .DS_Store
