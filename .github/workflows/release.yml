@@ -183,6 +183,17 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android NDK
+        shell: bash
+        # gomobile cross-compiles the Go runtime for Android and therefore needs
+        # the NDK, which setup-android does not install by default.
+        run: |
+          set -euo pipefail
+          NDK_VERSION=26.3.11579264
+          yes | sdkmanager --install "ndk;${NDK_VERSION}" >/dev/null
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
       - name: Install gomobile toolchain
         shell: bash
         run: |
@@ -210,7 +221,7 @@ jobs:
         # gomobile bind compiles internal/httpcore + store via the ./mobile facade
         # into frontend/android/app/libs/volt.aar (the AAR the VoltBridge plugin
         # links). --api must be >= the project's minSdkVersion.
-        run: scripts/build-aar.sh --api 24
+        run: bash scripts/build-aar.sh --api 24
 
       - name: Generate native Android project
         working-directory: frontend
